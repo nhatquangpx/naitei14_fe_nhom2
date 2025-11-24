@@ -44,7 +44,7 @@ export const RenderMainHeader = () => {
         } else {
           navigate('/products', { replace: true })
         }
-      }, 500)
+      }, 300)
     }
 
     return () => {

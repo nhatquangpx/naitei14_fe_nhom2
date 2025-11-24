@@ -1,5 +1,7 @@
 import { Product } from '@/types/product'
 import { mockProducts } from './mockProducts'
+import { getReviewsByProductId } from './mockReviews'
+import { generateDefaultProductDetail } from './mockProductDetails'
 
 const API_DELAY_MS = 100
 
@@ -63,5 +65,40 @@ export const searchProducts = async (filters: ProductFilters): Promise<Product[]
   }
 
   return filteredProducts
+}
+
+export const getProductById = async (id: number): Promise<Product | null> => {
+  await createDelayPromise(API_DELAY_MS)
+  
+  const product = mockProducts.find((p) => p.id === id)
+  if (!product) return null
+
+  const productDetailData = generateDefaultProductDetail(
+    product.id,
+    product.name,
+    product.category,
+    product.description
+  )
+
+  const productDetail: Product = {
+    ...product,
+    images: product.images || productDetailData.images || [
+      product.image,
+      product.image,
+      product.image,
+      product.image,
+      product.image,
+    ],
+    shortDescription:
+      product.shortDescription || productDetailData.shortDescription || product.description || '',
+    fullDescription: product.fullDescription || productDetailData.fullDescription || '',
+    tags: product.tags || productDetailData.tags || ['Cây cảnh', 'Trang trí', product.category || 'Phổ biến'],
+    reviews: product.reviews || getReviewsByProductId(product.id),
+    relatedProducts: mockProducts
+      .filter((p) => p.id !== product.id && (p.category === product.category || Math.random() > 0.5))
+      .slice(0, 4),
+  }
+
+  return productDetail
 }
 
