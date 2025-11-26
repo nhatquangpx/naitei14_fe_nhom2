@@ -1,18 +1,23 @@
+import bcrypt from "bcryptjs";
 import {
   RegisterRequest,
-  User,
   RegistrationError,
   ActivationError,
+  LoginError,
 } from "../types/auth.types";
+import { User } from "@/types/user";
 import { API_BASE_URL } from "@/constants/common";
 import { sendActivationEmail } from "./emailService";
 
 export const registerUser = async (data: RegisterRequest): Promise<User> => {
   const activationToken = crypto.randomUUID();
 
+  const hashedPassword = await bcrypt.hash(data.password, 10);
+
   const userData = {
     id: crypto.randomUUID(),
     ...data,
+    password: hashedPassword,
     emailVerified: false,
     activationToken,
     createdAt: new Date().toISOString(),
@@ -55,6 +60,71 @@ export const registerUser = async (data: RegisterRequest): Promise<User> => {
       email: user.email,
       timestamp: new Date().toISOString(),
     });
+
+    throw new RegistrationError(
+      "Không thể gửi email xác nhận. Tài khoản đã được tạo nhưng vui lòng liên hệ hỗ trợ để kích hoạt.",
+      emailError instanceof Error
+        ? emailError
+        : new Error("Unknown email error")
+    );
+  }
+
+  return user;
+};
+
+export const loginUser = async (
+  email: string,
+  password: string
+): Promise<User> => {
+  const response = await fetch(
+    `${API_BASE_URL}/users?email=${encodeURIComponent(email)}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorMessage = `Login API failed with status ${response.status}`;
+    console.error("User login API error", {
+      message: errorMessage,
+      status: response.status,
+      url: `${API_BASE_URL}/users?email=${encodeURIComponent(email)}`,
+    });
+    throw new LoginError("Đăng nhập thất bại", new Error(errorMessage));
+  }
+
+  const users: User[] = await response.json();
+
+  const user = users.find((u) => u.email === email);
+
+  if (!user) {
+    const errorMessage = "User not found";
+    console.error("Login error", {
+      message: errorMessage,
+      timestamp: new Date().toISOString(),
+    });
+    throw new LoginError("Người dùng không tồn tại");
+  }
+
+  if (!user.emailVerified) {
+    throw new LoginError("Vui lòng xác thực email trước khi đăng nhập");
+  }
+
+  if (!user.password) {
+    throw new LoginError("Dữ liệu mật khẩu bị thiếu");
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    const errorMessage = "Invalid password";
+    console.error("Login error", {
+      message: errorMessage,
+      timestamp: new Date().toISOString(),
+    });
+    throw new LoginError("Mật khẩu không chính xác");
   }
 
   return user;
@@ -142,4 +212,79 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
 
   const users = await response.json();
   return users.length > 0;
+};
+
+export const resendActivationEmail = async (email: string): Promise<void> => {
+  // Get all users to find by email
+  const response = await fetch(`${API_BASE_URL}/users`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorMessage = `Resend activation API failed with status ${response.status}`;
+    console.error("Resend activation error", {
+      message: errorMessage,
+      status: response.status,
+      timestamp: new Date().toISOString(),
+    });
+    throw new Error("Không thể gửi lại email kích hoạt");
+  }
+
+  const users: User[] = await response.json();
+  const user = users.find((u) => u.email === email);
+
+  if (!user) {
+    throw new Error("Người dùng không tồn tại");
+  }
+
+  if (user.emailVerified) {
+    throw new Error("Tài khoản đã được kích hoạt");
+  }
+
+  // Generate new activation token
+  const newActivationToken = crypto.randomUUID();
+
+  // Update user with new activation token
+  const updateResponse = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      activationToken: newActivationToken,
+    }),
+  });
+
+  if (!updateResponse.ok) {
+    const errorMessage = `User update failed with status ${updateResponse.status}`;
+    console.error("User update error", {
+      message: errorMessage,
+      userId: user.id,
+      status: updateResponse.status,
+      timestamp: new Date().toISOString(),
+    });
+    throw new Error("Không thể cập nhật token kích hoạt");
+  }
+
+  // Send activation email
+  const activationLink = `${window.location.origin}/auth/activate?userId=${user.id}&token=${newActivationToken}`;
+
+  try {
+    await sendActivationEmail(user.email, user.fullName, activationLink);
+  } catch (emailError) {
+    console.error("Resend activation email failed", {
+      message: "Activation email could not be sent",
+      cause:
+        emailError instanceof Error
+          ? emailError.message
+          : "Unknown email error",
+      userId: user.id,
+      email: user.email,
+      timestamp: new Date().toISOString(),
+    });
+    throw new Error("Không thể gửi email kích hoạt");
+  }
 };

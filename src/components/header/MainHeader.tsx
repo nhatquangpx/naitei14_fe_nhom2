@@ -79,7 +79,7 @@ export const RenderMainHeader = () => {
           </Link>
 
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-gray-700">
+            <div className="hidden md:flex items-center gap-2 text-primary-text">
               <span className="text-sm">(04) 6674 2332</span>
               <span className="text-gray-300">-</span>
               <span className="text-sm">(04) 3786 8504</span>
@@ -142,4 +142,3 @@ export const RenderMainHeader = () => {
     </header>
   )
 }
-

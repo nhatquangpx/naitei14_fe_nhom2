@@ -172,5 +172,3 @@ export const ProductCard = ({ product, isLarge = false, variant = 'default' }: P
     </div>
   )
 }
-
-
