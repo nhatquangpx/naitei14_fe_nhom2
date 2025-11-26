@@ -23,6 +23,7 @@ import {
   CONTEXT_RENDER_PRODUCTS,
 } from '@/constants/common'
 import { cn } from '@/lib/utils'
+import { logError } from '@/lib/logger'
 
 type ViewMode = 'grid' | 'list'
 type SortOption = 'name' | 'price-asc' | 'price-desc'
@@ -117,11 +118,12 @@ export const RenderProducts = () => {
         setAllProducts(products)
         setFilteredProducts(products)
       } catch (error) {
-        console.error('Error fetching products:', {
+        logError({
           error,
           context: CONTEXT_RENDER_PRODUCTS,
           action: 'fetchProducts',
           timestamp: new Date().toISOString(),
+          message: 'Error fetching products',
         })
       } finally {
         setLoading(false)
@@ -155,11 +157,12 @@ export const RenderProducts = () => {
         const filtered = await searchProducts(searchFilters)
         setFilteredProducts(filtered)
       } catch (error) {
-        console.error('Error searching products:', {
+        logError({
           error,
           context: CONTEXT_RENDER_PRODUCTS,
           action: 'fetchFilteredProducts',
           timestamp: new Date().toISOString(),
+          message: 'Error searching products',
         })
       } finally {
         setLoading(false)
